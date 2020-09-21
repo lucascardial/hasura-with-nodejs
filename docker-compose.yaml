@@ -1,0 +1,65 @@
+version: "3.3"
+
+services:
+
+  # Edge Router
+  traefik:
+    image: "traefik:v2.2"
+    container_name: "traefik"
+    command:
+      #- "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+  #----------------------------------------------------------------
+  #  Franchisor Services
+  #----------------------------------------------------------------
+  # DATABASE SERVICE
+  franchisor-db-pg:
+    image: postgres:12
+    container_name: franchisor_db_pg
+    restart: always
+    volumes:
+      - franchisor_db_pg_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: secret
+  # API SERVICE
+  franchisor-api-server:
+    container_name: franchisor-api-server
+    build:
+      context: .
+      dockerfile: api.franchisor.local.dockerfile
+    expose:
+      - 3000
+    volumes:
+      - ./franchisor/backend-application/:/var/www
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.franchisor-api-server.rule=Host(`api.franchisor.localhost`)"
+      - "traefik.http.routers.franchisor-api-server.entrypoints=web"
+    # HASURA SERVICE
+  franchisor-graphql-engine:
+    image: hasura/graphql-engine:v1.3.2
+    container_name: franchisor-graphql-engine
+    depends_on:
+      - "franchisor-db-pg"
+    restart: always
+    ports:
+      - 8090:8080
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.franchisor-graphql-engine.rule=Host(`graphql.franchisor.localhost`)"
+      - "traefik.http.routers.franchisor-graphql-engine.entrypoints=web"
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://postgres:secret@franchisor-db-pg:5432/postgres
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true"
+      HASURA_GRAPHQL_DEV_MODE: "true"
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, webhook-log, websocket-log, query-log
+volumes:
+  franchisor_db_pg_data: {}

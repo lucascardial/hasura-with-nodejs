@@ -1,0 +1,6 @@
+- table:
+    schema: public
+    name: franchise
+- table:
+    schema: public
+    name: franchisor
